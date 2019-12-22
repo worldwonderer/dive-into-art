@@ -189,11 +189,12 @@ def read_field(f):
     name_index = int(f.read(2).hex(), 16)
     descriptor_index = int(f.read(2).hex(), 16)
     attributes_count = int(f.read(2).hex(), 16)
-    index = 1
+    index = 0
     attributes = list()
     while index < attributes_count:
         attribute = read_attributes(f)
         attributes.append(attribute)
+        index += 1
     return {
         'access_flags': access_flags,
         'name_index': name_index,
@@ -272,8 +273,12 @@ def main():
             methods.append(read_method(f))
             index += 1
         attributes_count = int(f.read(2).hex(), 16)
-        # to be implemented
-        # parse attributes
+        attributes = list()
+        index = 0
+        while index < attributes_count:
+            attributes.append(read_attributes(f))
+            index += 1
+        # parse attribute detail, to be implemented
 
 
 if __name__ == '__main__':
