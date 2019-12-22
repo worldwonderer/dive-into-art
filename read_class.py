@@ -91,34 +91,147 @@ tag_constant_map = {
 }
 
 
-def read_access_flag(f):
+def read_field_access_flags(f):
     access_flags_hex = f.read(2).hex()
     access_flags = list()
     flags = {
         0: {
-            '1': 'SYNTHETIC',
-            '2': 'ANOOTATION',
-            '4': 'ENUM'
-        },
-        1: {
-            '2': 'INTERFACE',
-            '4': 'ABSTRACT'
+            1: 'SYNTHETIC',
+            4: 'ENUM',
         },
         2: {
-            '1': 'FINAL',
-            '2': 'SUPER'
+            1: 'FINAL',
+            4: 'VOLATILE',
+            8: 'TRANSIENT'
         },
         3: {
-            '1': 'PUBLIC'
+            1: 'PUBLIC',
+            2: 'PRIVATE',
+            4: 'PROTECTED',
+            8: 'STATIC'
         }
     }
-    for index in range(4):
+    for index in range(len(access_flags_hex)):
         b = access_flags_hex[index]
-        if b != '0':
-            access_flags.append(
-                flags[index][b]
-            )
+        if index in flags:
+            for flag in flags[index]:
+                if int(b, 16) & flag != 0:
+                    access_flags.append(flags[index][flag])
     return access_flags
+
+
+def read_class_access_flags(f):
+    access_flags_hex = f.read(2).hex()
+    access_flags = list()
+    flags = {
+        0: {
+            1: 'SYNTHETIC',
+            2: 'ANOOTATION',
+            4: 'ENUM'
+        },
+        1: {
+            2: 'INTERFACE',
+            4: 'ABSTRACT'
+        },
+        2: {
+            1: 'FINAL',
+            2: 'SUPER'
+        },
+        3: {
+            1: 'PUBLIC'
+        }
+    }
+    for index in range(len(access_flags_hex)):
+        b = access_flags_hex[index]
+        if index in flags:
+            for flag in flags[index]:
+                if int(b, 16) & flag != 0:
+                    access_flags.append(flags[index][flag])
+    return access_flags
+
+
+def read_method_access_flag(f):
+    access_flags_hex = f.read(2).hex()
+    access_flags = list()
+    flags = {
+        0: {
+            1: 'SYNTHETIC',
+        },
+        1: {
+            1: 'NATIVE',
+            4: 'ABSTRACT',
+            8: 'STRICT',
+        },
+        2: {
+            1: 'FINAL',
+            2: 'SYNCHRONIZED',
+            4: 'BRIDGE',
+            8: 'VARARGS',
+        },
+        3: {
+            1: 'PUBLIC',
+            2: 'PRIVATE',
+            4: 'PROTECTED',
+            8: 'STATIC'
+        }
+    }
+    for index in range(len(access_flags_hex)):
+        b = access_flags_hex[index]
+        if index in flags:
+            for flag in flags[index]:
+                if int(b, 16) & flag != 0:
+                    access_flags.append(flags[index][flag])
+    return access_flags
+
+
+def read_field(f):
+    access_flags = read_field_access_flags(f)
+    name_index = int(f.read(2).hex(), 16)
+    descriptor_index = int(f.read(2).hex(), 16)
+    attributes_count = int(f.read(2).hex(), 16)
+    index = 1
+    attributes = list()
+    while index < attributes_count:
+        attribute = read_attributes(f)
+        attributes.append(attribute)
+    return {
+        'access_flags': access_flags,
+        'name_index': name_index,
+        'descriptor_index': descriptor_index,
+        'attributes_count': attributes_count,
+        'attributes': attributes
+    }
+
+
+def read_method(f):
+    access_flags = read_method_access_flag(f)
+    name_index = int(f.read(2).hex(), 16)
+    descriptor_index = int(f.read(2).hex(), 16)
+    attributes_count = int(f.read(2).hex(), 16)
+    index = 0
+    attributes = list()
+    while index < attributes_count:
+        attribute = read_attributes(f)
+        attributes.append(attribute)
+        index += 1
+    return {
+        'access_flags': access_flags,
+        'name_index': name_index,
+        'descriptor_index': descriptor_index,
+        'attributes_count': attributes_count,
+        'attributes': attributes
+    }
+
+
+def read_attributes(f):
+    attribute_name_index = int(f.read(2).hex(), 16)
+    attribute_length = int(f.read(4).hex(), 16)
+    info = f.read(attribute_length)
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'info': info
+    }
 
 
 def main():
@@ -137,12 +250,30 @@ def main():
             parse_func = tag_constant_map[tag]
             constant_pool.append(parse_func(f, tag, index))
             index += 1
-        access_flags = read_access_flag(f)
+        access_flags = read_class_access_flags(f)
         this_class = int(f.read(2).hex(), 16)
         super_class = int(f.read(2).hex(), 16)
         interface_count = int(f.read(2).hex(), 16)
+        interfaces = list()
+        index = 0
+        while index < interface_count:
+            interfaces.append(int(f.read(2).hex(), 16))
+            index += 1
+        fields_count = int(f.read(2).hex(), 16)
+        fields = list()
+        index = 0
+        while index < fields_count:
+            fields.append(read_field(f))
+            index += 1
+        methods_count = int(f.read(2).hex(), 16)
+        methods = list()
+        index = 0
+        while index < methods_count:
+            methods.append(read_method(f))
+            index += 1
+        attributes_count = int(f.read(2).hex(), 16)
         # to be implemented
-        # parse interfaces, fields, methods, attributes
+        # parse attributes
 
 
 if __name__ == '__main__':
