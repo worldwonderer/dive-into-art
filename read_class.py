@@ -1,6 +1,9 @@
 class_file_path = 'Main.class'
 
 
+constant_pool = list()
+
+
 def is_class(magic_code):
     return magic_code == 'cafebabe'
 
@@ -71,11 +74,12 @@ def read_constant_utf8_info(f, tag, index):
     return {
         'tag': tag,
         'length': length,
-        'string': string,
+        'bytes': string,
         'index': index
     }
 
 
+# more constants need to be implemented
 tag_constant_map = {
     7: read_constant_class,
     9: read_constant_ref,  # Fieldref
@@ -192,7 +196,8 @@ def read_field(f):
     index = 0
     attributes = list()
     while index < attributes_count:
-        attribute = read_attributes(f)
+        attribute_name_index = int(f.read(2).hex(), 16)
+        attribute = read_attribute(f, attribute_name_index)
         attributes.append(attribute)
         index += 1
     return {
@@ -209,10 +214,11 @@ def read_method(f):
     name_index = int(f.read(2).hex(), 16)
     descriptor_index = int(f.read(2).hex(), 16)
     attributes_count = int(f.read(2).hex(), 16)
-    index = 0
     attributes = list()
+    index = 0
     while index < attributes_count:
-        attribute = read_attributes(f)
+        attribute_name_index = int(f.read(2).hex(), 16)
+        attribute = read_attribute(f, attribute_name_index)
         attributes.append(attribute)
         index += 1
     return {
@@ -224,15 +230,89 @@ def read_method(f):
     }
 
 
-def read_attributes(f):
-    attribute_name_index = int(f.read(2).hex(), 16)
+def read_attribute_code(f, attribute_name_index):
     attribute_length = int(f.read(4).hex(), 16)
-    info = f.read(attribute_length)
+    max_stack = int(f.read(2).hex(), 16)
+    max_locals = int(f.read(2).hex(), 16)
+    code_length = int(f.read(4).hex(), 16)
+    code = list()
+    index = 0
+    while index < code_length:
+        code.append(f.read(1).hex())
+        index += 1
+    exception_table_length = int(f.read(2).hex(), 16)
+    exception_table = list()
+    index = 0
+    while index < exception_table_length:
+        exception_table.append({
+            'start_pc': int(f.read(2).hex(), 16),
+            'end_pc': int(f.read(2).hex(), 16),
+            'handler_pc': int(f.read(2).hex(), 16),
+            'catch_type': int(f.read(2).hex(), 16)
+        })
+        index += 1
+    attributes_count = int(f.read(2).hex(), 16)
+    attributes = list()
+    while index < attributes_count:
+        attribute_name_index = int(f.read(2).hex(), 16)
+        attribute = read_attribute(f, attribute_name_index)
+        attributes.append(attribute)
+        index += 1
     return {
         'attribute_name_index': attribute_name_index,
         'attribute_length': attribute_length,
-        'info': info
+        'max_stack': max_stack,
+        'max_locals': max_locals,
+        'code_length': code_length,
+        'code': code,
+        'exception_table_legnth': exception_table_length,
+        'exception_tables': exception_table,
+        'attributes_count': attributes_count,
+        'attributes': attributes
     }
+
+
+def read_attribute_sourcefile(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    sourcefile_index = int(f.read(2).hex(), 16)
+    # more attributes need to be implemented
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'sourcefile_index': sourcefile_index
+    }
+
+
+def read_attribute_line_number_table(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    line_number_table_length = int(f.read(2).hex(), 16)
+    line_number_table = list()
+    index = 0
+    while index < line_number_table_length:
+        line_number_table.append({
+            'start_pc': int(f.read(2).hex(), 16),
+            'line_number': int(f.read(2).hex(), 16),
+        })
+        index += 1
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'line_number_table_length': line_number_table_length,
+        'line_number_table': line_number_table
+    }
+
+
+name_attribute_map = {
+    'Code': read_attribute_code,
+    'SourceFile': read_attribute_sourcefile,
+    'LineNumberTable': read_attribute_line_number_table
+}
+
+
+def read_attribute(f, attribute_name_index):
+    attribute_name = constant_pool[attribute_name_index-1]['bytes']
+    parse_func = name_attribute_map[attribute_name]
+    return parse_func(f, attribute_name_index)
 
 
 def main():
@@ -243,7 +323,6 @@ def main():
         minor_version = int(f.read(2).hex(), 16)
         major_version = int(f.read(2).hex(), 16)
         constant_pool_count = int(f.read(2).hex(), 16)
-        constant_pool = list()
         # start to read constant pool
         index = 1
         while index < constant_pool_count:
@@ -276,9 +355,9 @@ def main():
         attributes = list()
         index = 0
         while index < attributes_count:
-            attributes.append(read_attributes(f))
+            attribute_name_index = int(f.read(2).hex(), 16)
+            attributes.append(read_attribute(f, attribute_name_index))
             index += 1
-        # parse attribute detail, to be implemented
 
 
 if __name__ == '__main__':
