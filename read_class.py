@@ -1,6 +1,3 @@
-class_file_path = 'Main.class'
-
-
 constant_pool = list()
 
 
@@ -79,7 +76,37 @@ def read_constant_utf8_info(f, tag, index):
     }
 
 
-# more constants need to be implemented
+def read_constant_method_handle_info(f, tag, index):
+    reference_kind = int(f.read(1).hex(), 16)
+    reference_index = int(f.read(2).hex(), 16)
+    return {
+        'tag': tag,
+        'reference_kind': reference_kind,
+        'reference_index': reference_index,
+        'index': index
+    }
+
+
+def read_constant_method_type_info(f, tag, index):
+    descriptor_index = int(f.read(2).hex(), 16)
+    return {
+        'tag': tag,
+        'descriptor_index': descriptor_index,
+        'index': index
+    }
+
+
+def read_invoke_dynamic_info(f, tag, index):
+    bootstrap_method_attr_index = int(f.read(2).hex(), 16)
+    name_and_type_index = int(f.read(2).hex(), 16)
+    return {
+        'tag': tag,
+        'bootstrap_method_attr_index': bootstrap_method_attr_index,
+        'name_and_type_index': name_and_type_index,
+        'index': index
+    }
+
+
 tag_constant_map = {
     7: read_constant_class,
     9: read_constant_ref,  # Fieldref
@@ -92,6 +119,9 @@ tag_constant_map = {
     6: read_constant_long_num,  # Double,
     12: read_constant_name_and_type,
     1: read_constant_utf8_info,
+    15: read_constant_method_handle_info,
+    16: read_constant_method_type_info,
+    18: read_invoke_dynamic_info
 }
 
 
@@ -130,7 +160,7 @@ def read_class_access_flags(f):
     flags = {
         0: {
             1: 'SYNTHETIC',
-            2: 'ANOOTATION',
+            2: 'ANNOTATION',
             4: 'ENUM'
         },
         1: {
@@ -275,7 +305,6 @@ def read_attribute_code(f, attribute_name_index):
 def read_attribute_sourcefile(f, attribute_name_index):
     attribute_length = int(f.read(4).hex(), 16)
     sourcefile_index = int(f.read(2).hex(), 16)
-    # more attributes need to be implemented
     return {
         'attribute_name_index': attribute_name_index,
         'attribute_length': attribute_length,
@@ -302,10 +331,97 @@ def read_attribute_line_number_table(f, attribute_name_index):
     }
 
 
+def read_attribute_constant_value(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    constantvalue_index = int(f.read(2).hex(), 16)
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'constantvalue_index': constantvalue_index
+    }
+
+
+def read_attribute_exceptions(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    number_of_exceptions = int(f.read(2).hex(), 16)
+    exception_index_table = list()
+    index = 0
+    while index < number_of_exceptions:
+        exception_index_table.append(int(f.read(2).hex(), 16))
+        index += 1
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'number_of_exceptions': number_of_exceptions,
+        'exception_index_table': exception_index_table
+    }
+
+
+def read_attribute_signature(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    signature_index = int(f.read(2).hex(), 16)
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'signature_index': signature_index
+    }
+
+
+def read_attribute_stack_map_table(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    stack_map_table = f.read(attribute_length)
+    # to be implementedgit
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'stack_map_table': stack_map_table
+    }
+
+
+def read_attribute_inner_classes(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    number_of_classes = int(f.read(2).hex(), 16)
+    classes = list()
+    index = 0
+    while index < number_of_classes:
+        classes.append({
+            'inner_class_info_index': int(f.read(2).hex(), 16),
+            'outer_class_info_index': int(f.read(2).hex(), 16),
+            'inner_name_index': int(f.read(2).hex(), 16),
+            'inner_class_access_flags': read_class_access_flags(f)
+        })
+        index += 1
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'number_of_classes': number_of_classes,
+        'classes': classes
+    }
+
+
+def read_attribute_enclosing_method(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    class_index = int(f.read(2).hex(), 16)
+    method_index = int(f.read(2).hex(), 16)
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'class_index': class_index,
+        'method_index': method_index
+    }
+
+
+# more attributes need to be implemented
 name_attribute_map = {
     'Code': read_attribute_code,
     'SourceFile': read_attribute_sourcefile,
-    'LineNumberTable': read_attribute_line_number_table
+    'LineNumberTable': read_attribute_line_number_table,
+    'ConstantValue': read_attribute_constant_value,
+    'Exceptions': read_attribute_exceptions,
+    'Signature': read_attribute_signature,
+    'StackMapTable': read_attribute_stack_map_table,
+    'InnerClasses': read_attribute_inner_classes,
+    'EnclosingMethod': read_attribute_enclosing_method
 }
 
 
@@ -315,7 +431,7 @@ def read_attribute(f, attribute_name_index):
     return parse_func(f, attribute_name_index)
 
 
-def main():
+def main(class_file_path):
     with open(class_file_path, 'rb') as f:
         magic_code = f.read(4).hex()
         if not is_class(magic_code):
@@ -361,4 +477,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main("Main.class")
