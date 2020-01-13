@@ -369,13 +369,110 @@ def read_attribute_signature(f, attribute_name_index):
 
 def read_attribute_stack_map_table(f, attribute_name_index):
     attribute_length = int(f.read(4).hex(), 16)
-    stack_map_table = f.read(attribute_length)
-    # to be implementedgit
+    number_of_entries = int(f.read(2).hex(), 16)
+    entries = list()
+    index = 0
+    while index < number_of_entries:
+        frame_type = int(f.read(1).hex(), 16)
+        entries.append(read_stack_map_frame(f, frame_type))
+        index += 1
     return {
         'attribute_name_index': attribute_name_index,
         'attribute_length': attribute_length,
-        'stack_map_table': stack_map_table
+        'number_of_entries': number_of_entries,
+        'entries': entries,
     }
+
+
+def read_stack_map_frame(f, frame_type):
+    stack_map_frame = {
+        'frame_type': frame_type,
+    }
+    if 0 <= frame_type <= 63:
+        # SAME
+        pass
+    elif 64 <= frame_type <= 127:
+        # SAME_LOCALS_!_STACK_ITEM
+        number_of_stack_items = 1
+        stack_items = list()
+        index = 0
+        while index < number_of_stack_items:
+            tag = int(f.read(1).hex(), 16)
+            stack_items.append(read_verification_type_info(f, tag))
+            index += 1
+        stack_map_frame['stack'] = stack_items
+    elif frame_type == 247:
+        # SAME_LOCALS_1_STACK_ITEM_EXTENDED
+        stack_map_frame['offset_delta'] = int(f.read(2).hex(), 16)
+        number_of_stack_items = 1
+        stack_items = list()
+        index = 0
+        while index < number_of_stack_items:
+            tag = int(f.read(1).hex(), 16)
+            stack_items.append(read_verification_type_info(f, tag))
+            index += 1
+        stack_map_frame['stack'] = stack_items
+    elif 248 <= frame_type <= 250:
+        # CHOP
+        stack_map_frame['offset_delta'] = int(f.read(2).hex(), 16)
+    elif frame_type == 251:
+        # SAME_FRAME_EXTENDED
+        stack_map_frame['offset_delta'] = int(f.read(2).hex(), 16)
+    elif 252 <= frame_type <= 254:
+        # APPEND
+        stack_map_frame['offset_delta'] = int(f.read(2).hex(), 16)
+        number_of_locals = frame_type - 251
+        locals_ = list()
+        index = 0
+        while index < number_of_locals:
+            tag = int(f.read(1).hex(), 16)
+            locals_.append(read_verification_type_info(f, tag))
+            index += 1
+        stack_map_frame['locals'] = locals_
+    elif frame_type == 255:
+        # FULL_FRAME
+        stack_map_frame['offset_delta'] = int(f.read(2).hex(), 16)
+        number_of_locals = int(f.read(2).hex(), 16)
+        stack_map_frame['number_of_locals'] = number_of_locals
+        locals_ = list()
+        index = 0
+        while index < number_of_locals:
+            tag = int(f.read(1).hex(), 16)
+            locals_.append(read_verification_type_info(f, tag))
+            index += 1
+        stack_map_frame['locals'] = locals_
+
+        number_of_stack_items = int(f.read(2).hex(), 16)
+        stack_items = list()
+        index = 0
+        while index < number_of_stack_items:
+            tag = int(f.read(1).hex(), 16)
+            stack_items.append(read_verification_type_info(f, tag))
+            index += 1
+        stack_map_frame['stack'] = stack_items
+    return stack_map_frame
+
+
+def read_verification_type_info(f, tag):
+    # Top_variable_info
+    # Integer_variable_info
+    # Float_variable_info
+    # Long_variable_info
+    # Double_variable_info
+    # Null_variable_info
+    # UninitializedThis_variable_info
+    # Object_variable_info
+    # Uninitialized_variable_info
+    verification_type_info = {
+        'tag': tag
+    }
+    if tag <= 6:
+        pass
+    elif tag == 7:
+        verification_type_info['cpool_index'] = int(f.read(2).hex(), 16)
+    elif tag == 8:
+        verification_type_info['offset'] = int(f.read(2).hex(), 16)
+    return verification_type_info
 
 
 def read_attribute_inner_classes(f, attribute_name_index):
@@ -411,7 +508,33 @@ def read_attribute_enclosing_method(f, attribute_name_index):
     }
 
 
-# more attributes need to be implemented
+def read_attribute_synthetic(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length
+    }
+
+
+def read_attribute_deprecated(f, attribute_name_index):
+    attribute_length = int(f.read(4).hex(), 16)
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length
+    }
+
+
+def read_attribute_uncommon(f, attribute_name_index):
+    # other uncommon attributes
+    attribute_length = int(f.read(4).hex(), 16)
+    attribute = f.read(attribute_length).hex()
+    return {
+        'attribute_name_index': attribute_name_index,
+        'attribute_length': attribute_length,
+        'attribute': attribute
+    }
+
+
 name_attribute_map = {
     'Code': read_attribute_code,
     'SourceFile': read_attribute_sourcefile,
@@ -421,13 +544,15 @@ name_attribute_map = {
     'Signature': read_attribute_signature,
     'StackMapTable': read_attribute_stack_map_table,
     'InnerClasses': read_attribute_inner_classes,
-    'EnclosingMethod': read_attribute_enclosing_method
+    'EnclosingMethod': read_attribute_enclosing_method,
+    'Synthetic': read_attribute_synthetic,
+    'Deprecated': read_attribute_deprecated
 }
 
 
 def read_attribute(f, attribute_name_index):
-    attribute_name = constant_pool[attribute_name_index-1]['bytes']
-    parse_func = name_attribute_map[attribute_name]
+    attribute_name = constant_pool[attribute_name_index - 1]['bytes']
+    parse_func = name_attribute_map.get(attribute_name, read_attribute_uncommon)
     return parse_func(f, attribute_name_index)
 
 
