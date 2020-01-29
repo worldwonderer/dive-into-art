@@ -1,3 +1,8 @@
+"""
+Main.class
+
+javac Main.java .
+"""
 constant_pool = list()
 
 
