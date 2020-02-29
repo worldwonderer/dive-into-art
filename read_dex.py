@@ -32,12 +32,66 @@ def read_header_item(f):
     return size_off_map
 
 
-def read_string_id_item(f, offset, size):
-    f.seek(offset)
+def read_uleb128(f):
+    values = []
+    value = int.from_bytes(f.read(1), byteorder='little', signed=False)
+    values.append(value)
+    while value >= 0x7f:
+        value = int.from_bytes(f.read(1), byteorder='little', signed=False)
+        values.append(value)
+    i = len(values)
+    result = 0
+    values = values[::-1]
+    for value in values:
+        i = i - 1
+        result |= (value & 0x7f) << (i * 7)
+    return result
+
+
+def read_string_id_items(f, offset, size):
+    items = list()
+    for i in range(size):
+        f.seek(offset+4*i)
+        item = read_string_id_item(f)
+        i += 1
+        items.append(item)
+    return items
+
+
+def read_string_id_item(f):
+    string_data_off = struct.unpack('<I', f.read(4))[0]
+    string_data_item = read_string_data_item(f, string_data_off)
+    return {
+        'string_data_off': string_data_off,
+        'string_data_item': string_data_item
+    }
 
 
 def read_string_data_item(f, offset):
-    pass
+    f.seek(offset)
+    utf16_size = read_uleb128(f)
+    string_data = ''.join([t[0].decode() for t in struct.iter_unpack('<s', f.read(utf16_size))])
+    return {
+        'utf16_size': utf16_size,
+        'string_data': string_data
+    }
+
+
+def read_type_id_items(f, offset, size):
+    items = list()
+    for i in range(size):
+        f.seek(offset+4*i)
+        item = read_type_id_item(f)
+        i += 1
+        items.append(item)
+    return items
+
+
+def read_type_id_item(f):
+    descriptor_idx = struct.unpack('<I', f.read(4))[0]
+    return {
+        'descriptor_idx': descriptor_idx
+    }
 
 
 def main(dex_file_path):
@@ -45,8 +99,11 @@ def main(dex_file_path):
         # header_item
         size_off_map = read_header_item(f)
         # string_id_item
-        size, off = size_off_map['string_ids_size'], size_off_map['string_id_off']
-        read_string_id_item(f, off, size)
+        size, off = size_off_map['string_ids_size'], size_off_map['string_ids_off']
+        string_id_items = read_string_id_items(f, off, size)
+        size, off = size_off_map['type_ids_size'], size_off_map['type_ids_off']
+        type_id_items = read_type_id_items(f, off, size)
+        print(type_id_items)
 
 
 if __name__ == '__main__':
