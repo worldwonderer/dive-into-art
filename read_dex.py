@@ -3,6 +3,7 @@ Main.dex
 
 dx --dex --output=Main.dex io/github/worldwonderer/Main.class
 """
+import struct
 
 
 def is_dex(f):
@@ -15,36 +16,37 @@ def is_dex(f):
 
 def read_header_item(f):
     dex_version = is_dex(f)
-    checksum = f.read(4).hex()
+    checksum = hex(struct.unpack('<I', f.read(4))[0])
     signature = f.read(20).hex()
-    file_size = int(f.read(4)[::-1].hex(), 16)
-    header_size = int(f.read(4)[::-1].hex(), 16)
-    endian_tag = int(f.read(4).hex(), 16)
-    if endian_tag != 0x78563412:
-        raise ValueError("not a standard dex file")
-    link_size = int(f.read(4)[::-1].hex(), 16)
-    link_off = int(f.read(4)[::-1].hex(), 16)
-    map_off = int(f.read(4)[::-1].hex(), 16)
-    string_ids_size = int(f.read(4)[::-1].hex(), 16)
-    string_ids_off = int(f.read(4)[::-1].hex(), 16)
-    type_ids_size = int(f.read(4)[::-1].hex(), 16)
-    type_ids_off = int(f.read(4)[::-1].hex(), 16)
-    proto_ids_size = int(f.read(4)[::-1].hex(), 16)
-    proto_ids_off = int(f.read(4)[::-1].hex(), 16)
-    field_ids_size = int(f.read(4)[::-1].hex(), 16)
-    field_ids_off = int(f.read(4)[::-1].hex(), 16)
-    method_ids_size = int(f.read(4)[::-1].hex(), 16)
-    method_ids_off = int(f.read(4)[::-1].hex(), 16)
-    class_defs_size = int(f.read(4)[::-1].hex(), 16)
-    class_defs_off = int(f.read(4)[::-1].hex(), 16)
-    data_size = int(f.read(4)[::-1].hex(), 16)
-    data_off = int(f.read(4)[::-1].hex(), 16)
+    file_size = struct.unpack('<I', f.read(4))[0]
+    header_size = struct.unpack('<I', f.read(4))[0]
+    endian_tag = struct.unpack('<I', f.read(4))[0]
+    if endian_tag != 0x12345678:
+        raise ValueError("not a little indian dex file")
+    size_off_map = dict()
+    for name in ['link_size', 'link_off', 'map_off', 'string_ids_size', 'string_ids_off',
+                 'type_ids_size', 'type_ids_off', 'proto_ids_size', 'proto_ids_off',
+                 'field_ids_size', 'field_ids_off', 'method_ids_size', 'method_ids_off',
+                 'class_defs_size', 'class_defs_off', 'data_size', 'data_off']:
+        size_off_map[name] = struct.unpack('<I', f.read(4))[0]
+    return size_off_map
+
+
+def read_string_id_item(f, offset, size):
+    f.seek(offset)
+
+
+def read_string_data_item(f, offset):
+    pass
 
 
 def main(dex_file_path):
     with open(dex_file_path, 'rb') as f:
         # header_item
-        read_header_item(f)
+        size_off_map = read_header_item(f)
+        # string_id_item
+        size, off = size_off_map['string_ids_size'], size_off_map['string_id_off']
+        read_string_id_item(f, off, size)
 
 
 if __name__ == '__main__':
