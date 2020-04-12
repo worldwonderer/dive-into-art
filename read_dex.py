@@ -109,6 +109,39 @@ def read_proto_id_item(f):
     }
 
 
+def read_field_id_item(f):
+    return {
+        'class_idx': struct.unpack('<H', f.read(2))[0],
+        'type_idx': struct.unpack('<H', f.read(2))[0],
+        'name_idx': struct.unpack('<I', f.read(4))[0]
+    }
+
+
+def read_field_id_items(f, offset, size):
+    items = list()
+    for i in range(size):
+        f.seek(offset+4*2*i)
+        item = read_field_id_item(f)
+        items.append(item)
+    return items
+
+
+def read_method_id_item(f):
+    return {
+        'class_idx': struct.unpack('<H', f.read(2))[0],
+        'proto_idx': struct.unpack('<H', f.read(2))[0],
+        'name_idx': struct.unpack('<I', f.read(4))[0]
+    }
+
+
+def read_method_id_items(f, offset, size):
+    items = list()
+    for i in range(size):
+        f.seek(offset+4*2*i)
+        item = read_method_id_item(f)
+        items.append(item)
+    return items
+
 def main(dex_file_path):
     with open(dex_file_path, 'rb') as f:
         # header_item
@@ -120,7 +153,11 @@ def main(dex_file_path):
         type_id_items = read_type_id_items(f, off, size)
         size, off = size_off_map['proto_ids_size'], size_off_map['proto_ids_off']
         proto_id_items = read_proto_id_items(f, off, size)
-        print(proto_id_items)
+        size, off = size_off_map['field_ids_size'], size_off_map['field_ids_off']
+        field_id_items = read_field_id_items(f, off, size)
+        size, off = size_off_map['method_ids_size'], size_off_map['method_ids_off']
+        method_id_items = read_method_id_items(f, off, size)
+        print(method_id_items)
 
 
 if __name__ == '__main__':
