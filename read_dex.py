@@ -33,25 +33,21 @@ def read_header_item(f):
 
 
 def read_uleb128(f):
-    values = []
-    value = int.from_bytes(f.read(1), byteorder='little', signed=False)
-    values.append(value)
-    while value >= 0x7f:
-        value = int.from_bytes(f.read(1), byteorder='little', signed=False)
-        values.append(value)
-    i = len(values)
-    result = 0
-    values = values[::-1]
-    for value in values:
-        i = i - 1
-        result |= (value & 0x7f) << (i * 7)
-    return result
+    val = 0
+    i = 0
+    while True:
+        b = f.read(1)[0]
+        val |= ((b & 0x7f) << (i * 7))
+        i += 1
+        if b & 0x80 == 0:
+            break
+    return val
 
 
 def read_string_id_items(f, offset, size):
     items = list()
     for i in range(size):
-        f.seek(offset+4*i)
+        f.seek(offset + 4 * i)
         item = read_string_id_item(f)
         items.append(item)
     return items
@@ -69,7 +65,8 @@ def read_string_id_item(f):
 def read_string_data_item(f, offset):
     f.seek(offset)
     utf16_size = read_uleb128(f)
-    string_data = ''.join([t[0].decode() for t in struct.iter_unpack('<s', f.read(utf16_size))])
+    # string_data = ''.join([t[0].decode() for t in struct.iter_unpack('<s', f.read(utf16_size))])
+    string_data = f.read(utf16_size)
     return {
         'utf16_size': utf16_size,
         'string_data': string_data
@@ -79,7 +76,7 @@ def read_string_data_item(f, offset):
 def read_type_id_items(f, offset, size):
     items = list()
     for i in range(size):
-        f.seek(offset+4*i)
+        f.seek(offset + 4 * i)
         item = read_type_id_item(f)
         items.append(item)
     return items
@@ -95,7 +92,7 @@ def read_type_id_item(f):
 def read_proto_id_items(f, offset, size):
     items = list()
     for i in range(size):
-        f.seek(offset+4*3*i)
+        f.seek(offset + 4 * 3 * i)
         item = read_proto_id_item(f)
         items.append(item)
     return items
@@ -135,7 +132,7 @@ def read_field_id_item(f):
 def read_field_id_items(f, offset, size):
     items = list()
     for i in range(size):
-        f.seek(offset+4*2*i)
+        f.seek(offset + 4 * 2 * i)
         item = read_field_id_item(f)
         items.append(item)
     return items
@@ -152,7 +149,7 @@ def read_method_id_item(f):
 def read_method_id_items(f, offset, size):
     items = list()
     for i in range(size):
-        f.seek(offset+4*2*i)
+        f.seek(offset + 4 * 2 * i)
         item = read_method_id_item(f)
         items.append(item)
     return items
@@ -161,7 +158,7 @@ def read_method_id_items(f, offset, size):
 def read_class_def_items(f, offset, size):
     items = list()
     for i in range(size):
-        f.seek(offset+4*8*i)
+        f.seek(offset + 4 * 8 * i)
         item = read_class_def_item(f)
         items.append(item)
     return items
@@ -178,8 +175,29 @@ def read_class_def_item(f):
         'class_data_off': struct.unpack('<I', f.read(4))[0],
         'static_values_off': struct.unpack('<I', f.read(4))[0],
     }
-    item['class_data'] = read_class_data(f, item['class_data_off'])
+    if item['annotations_off'] != 0:
+        item['annotations'] = read_annotations(f, item['annotations_off'])
+    if item['class_data_off'] != 0:
+        item['class_data'] = read_class_data(f, item['class_data_off'])
+    if item['static_values_off'] != 0:
+        item['static_values'] = read_static_values(f, item['static_values_off'])
     return item
+
+
+def read_annotations(f, off):
+    # to be implemented
+    f.seek(off)
+    return {
+
+    }
+
+
+def read_static_values(f, off):
+    # to be implemented
+    f.seek(off)
+    return {
+
+    }
 
 
 def read_class_data(f, off):
@@ -208,8 +226,9 @@ def read_class_data(f, off):
             'code_off': read_uleb128(f)
         }
         current_offset = f.tell()
-        item['code'] = read_code(f, item['code_off'])
-        f.seek(current_offset)
+        if item['code_off'] != 0:
+            item['code'] = read_code(f, item['code_off'])
+            f.seek(current_offset)
         direct_methods.append(item)
     virtual_methods = list()
     for i in range(virtual_methods_size):
@@ -219,8 +238,9 @@ def read_class_data(f, off):
             'code_off': read_uleb128(f)
         }
         current_offset = f.tell()
-        item['code'] = read_code(f, item['code_off'])
-        f.seek(current_offset)
+        if item['code_off'] != 0:
+            item['code'] = read_code(f, item['code_off'])
+            f.seek(current_offset)
         virtual_methods.append(item)
     return {
         'static_fields_size': static_fields_size,
